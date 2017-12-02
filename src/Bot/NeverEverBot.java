@@ -91,12 +91,13 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
 
     private void startGame(long chatId,  String question, String initiator){
         if (!games.containsKey(chatId)) {
+            //очки для чата
+            if (!scoreBoard.containsKey(chatId)) scoreBoard.put(chatId, new HashMap<>());
+
             Game gameToStart = new Game(this, chatId, initiator, scoreBoard.get(chatId));
             games.put(chatId, gameToStart);
             gameToStart.startGame(question);
 
-            //очки для чата
-            if (!scoreBoard.containsKey(chatId)) scoreBoard.put(chatId, new HashMap<>());
         }
         else {
             // игра уже есть!

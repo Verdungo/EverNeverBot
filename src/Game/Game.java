@@ -12,8 +12,10 @@ import java.util.LinkedHashMap;
 
 public class Game extends Thread{
 
-    private static final long ROUND_MINUTES = 3*60*1000; //5 mins
-    private static final long TICK_INTERVAL = 10*1000; //10 secs
+    private static final long ROUND_MINUTES = 3*60*1000; //3 mins
+    private static final long TICK_INTERVAL = 5*1000; //5 secs
+    //private static final long ROUND_MINUTES = 10*1000;
+    //private static final long TICK_INTERVAL = 1*1000;
 
     private boolean active = false;
     private String question = "";
@@ -49,6 +51,10 @@ public class Game extends Thread{
         question = q;
         active = true;
         this.start();
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
     public void endGame(){
@@ -96,7 +102,7 @@ public class Game extends Thread{
             remainingTime-=TICK_INTERVAL;
         } while (active && remainingTime>0);
 
-        endGame();
+        if (active) bot.endGame(chatId);
     }
 
     private String getRemainingTime(long mills) {
