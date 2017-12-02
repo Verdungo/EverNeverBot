@@ -12,7 +12,8 @@ import java.util.LinkedHashMap;
 
 public class Game extends Thread{
 
-    private static final long ROUND_MINUTES = 5;
+    private static final long ROUND_MINUTES = 3*60*1000; //5 mins
+    private static final long TICK_INTERVAL = 10*1000; //10 secs
 
     private boolean active = false;
     private String question = "";
@@ -22,14 +23,14 @@ public class Game extends Thread{
     private Integer headerMessageId;
     private long remainingTime;
     private Map<String, Boolean> answers;
-    private Map<String, Integer> scores;
+    private Map<String, Integer> chatScores;
 
-    public Game(NeverEverBot bot, long chatId, String gameInitiator) {
+    public Game(NeverEverBot bot, long chatId, String gameInitiator, Map<String, Integer> chatScores) {
         this.bot = bot;
         this.chatId = chatId;
-        remainingTime = ROUND_MINUTES * 1000*60;
+        remainingTime = ROUND_MINUTES;
         answers = new LinkedHashMap<>();
-        scores = new LinkedHashMap<>();
+        this.chatScores = chatScores;
         this.gameInitiator = gameInitiator;
 
         SendMessage msg = new SendMessage()
@@ -65,9 +66,13 @@ public class Game extends Thread{
             e.printStackTrace();
         }
 
+        StringBuilder result = new StringBuilder("Игра закончена!\nОбщий счет:\n");
+        for (Entry<String, Integer> s : chatScores.entrySet()) {
+            result.append(s.getKey()).append(": ").append(s.getValue()).append("\n");
+        }
         SendMessage msg = new SendMessage()
                 .setChatId(chatId)
-                .setText("Игра закончена!\n" + );
+                .setText(result.toString());
 
         try {
             bot.execute(msg);
@@ -79,30 +84,18 @@ public class Game extends Thread{
 
     public void run() {
         // main work here
-        // check updates, calc scores(?), countdown
         do {
-            EditMessageText msg = new EditMessageText()
-                    .setChatId(chatId)
-                    .setMessageId(headerMessageId)
-                    .setReplyMarkup(NeverEverKeyboard.getKeybboard())
-                    .setText(formMessage(true));
+            updateHeaderMessage();
 
             try {
-                bot.execute(msg);
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-            }
-
-            try {
-                sleep(1000);
+                sleep(TICK_INTERVAL);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
 
-            remainingTime-=1000;
-        } while (active);
+            remainingTime-=TICK_INTERVAL;
+        } while (active && remainingTime>0);
 
-        this.interrupt();
         endGame();
     }
 
@@ -112,13 +105,26 @@ public class Game extends Thread{
         return String.format("%d:%02d", minutes, seconds);
     }
 
+    public void updateHeaderMessage(){
+        EditMessageText msg = new EditMessageText()
+                .setChatId(chatId)
+                .setMessageId(headerMessageId)
+                .setReplyMarkup(NeverEverKeyboard.getKeybboard())
+                .setText(formMessage(true));
+
+        try {
+            bot.execute(msg);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
     private String formMessage(boolean withTime){
         StringBuilder sb = new StringBuilder(question).append("\n");
-        if (withTime) sb.append("(" + getRemainingTime(remainingTime)+")\n");
+        if (withTime) sb.append("(").append(getRemainingTime(remainingTime)).append(")\n");
         for (Map.Entry<String, Boolean> answer: answers.entrySet()){
-            sb.append(answer.getKey() + " " + (answer.getValue() ? "❌" : "✔") + "\n");
+            sb.append(answer.getKey()).append(" ").append(answer.getValue() ? "❌" : "✔").append("\n");
         }
-
         return sb.toString();
     }
 
@@ -129,12 +135,13 @@ public class Game extends Thread{
     private void calcScores() {
         boolean initiatorLoser = !answers.containsValue(false);
         for (Entry<String, Boolean> answer : answers.entrySet()) {
-            addScore(answer.getKey(), (!answer.getValue() || (answer.getKey().equals(gameInitiator) && initiatorLoser)) ? 0 : 1);
+            Integer playerScore = (!answer.getValue() || (answer.getKey().equals(gameInitiator) && initiatorLoser)) ? 0 : 1;
+            if (!chatScores.containsKey(answer.getKey())) {
+                chatScores.put(answer.getKey(), playerScore);
+            }
+            else {
+                chatScores.put(answer.getKey(), chatScores.get(answer.getKey())+playerScore);
+            }
         }
     }
-
-    private void addScore(String player, Integer score){
-        scores.put(player, score);
-    }
-
 }

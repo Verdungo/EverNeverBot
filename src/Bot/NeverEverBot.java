@@ -4,6 +4,7 @@ import Game.Game;
 import org.telegram.telegrambots.ApiContextInitializer;
 import org.telegram.telegrambots.TelegramBotsApi;
 import org.telegram.telegrambots.api.methods.AnswerCallbackQuery;
+import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.Update;
 import org.telegram.telegrambots.bots.commandbot.TelegramLongPollingCommandBot;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
@@ -16,7 +17,8 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
 
     private static final String botToken = "462721270:AAHLtx9MXbeYivPP_SyQ9Sg6GeX3nMEsm54";
     private static final String botUsername = "EverNeverBot";
-    private Map<Long,Game> games = new HashMap<>();
+    private Map<Long, Game> games = new HashMap<>();
+    private Map<Long, Map<String, Integer>> scoreBoard = new HashMap<>();
 
     public NeverEverBot() {
         super(botUsername);
@@ -28,6 +30,7 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
         TelegramBotsApi botsApi = new TelegramBotsApi();
 
         TelegramLongPollingCommandBot bot = new NeverEverBot();
+        bot.register(new AboutCommand());
 
         try {
             botsApi.registerBot(bot);
@@ -59,6 +62,7 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
         else if (update.hasCallbackQuery()){
             long chatId = update.getCallbackQuery().getMessage().getChatId();
             String player = update.getCallbackQuery().getFrom().getFirstName();
+
             switch (update.getCallbackQuery().getData()) {
                 case "never" :
                     games.get(chatId).putAnswer(player, true);
@@ -68,6 +72,8 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
                     break;
                 default:
             }
+
+            games.get(chatId).updateHeaderMessage();
 
             // чтобы не крутился бесконечно спиннер
             try {
@@ -84,14 +90,46 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
     }
 
     private void startGame(long chatId,  String question, String initiator){
-        Game gameToStart = new Game(this, chatId, initiator);
-        games.put(chatId, gameToStart);
-        gameToStart.startGame(question);
+        if (!games.containsKey(chatId)) {
+            Game gameToStart = new Game(this, chatId, initiator, scoreBoard.get(chatId));
+            games.put(chatId, gameToStart);
+            gameToStart.startGame(question);
+
+            //очки для чата
+            if (!scoreBoard.containsKey(chatId)) scoreBoard.put(chatId, new HashMap<>());
+        }
+        else {
+            // игра уже есть!
+            SendMessage msg = new SendMessage()
+                    .setChatId(chatId)
+                    .setText("Игра уже идет!");
+
+            try {
+                execute(msg);
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+
+            //TODO: переопубликовать вопрос?
+        }
     }
 
-    private void endGame(long chatId){
-        Game gameToEnd = games.remove(chatId);
-        gameToEnd.endGame();
-    }
+    public void endGame(long chatId){
+        if (games.containsKey(chatId)) {
+            Game gameToEnd = games.remove(chatId);
+            gameToEnd.endGame();
+        }
+        else {
+            //нечего заканчивать
+            SendMessage msg = new SendMessage()
+                    .setChatId(chatId)
+                    .setText("Нет активных игр.");
 
+            try {
+                execute(msg);
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 }
