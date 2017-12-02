@@ -50,6 +50,8 @@ public class Game extends Thread{
     public void startGame(String q) {
         question = q;
         active = true;
+        answers.put(gameInitiator, true);
+
         this.start();
     }
 
