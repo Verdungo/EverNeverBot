@@ -1,31 +1,27 @@
 package database;
 
 public class Score {
-    private long id;
-    private long score;
+    private User user;
+    private Integer score;
 
-    public Score(long id, long score) {
-        this(score);
-        this.id = id;
-    }
-
-    public Score(long score) {
+    public Score(User user, Integer score) {
+        this.user = user;
         this.score = score;
     }
 
-    public long getId() {
-        return id;
+    public User getUser() {
+        return user;
     }
 
-    public void setId(long id) {
-        this.id = id;
+    public void setUser(User user) {
+        this.user = user;
     }
 
     public long getScore() {
         return score;
     }
 
-    public void setScore(long score) {
+    public void setScore(Integer score) {
         this.score = score;
     }
 }

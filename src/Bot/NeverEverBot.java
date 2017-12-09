@@ -1,6 +1,8 @@
 package Bot;
 
 import Game.Game;
+import database.Chat;
+import database.User;
 import org.telegram.telegrambots.ApiContextInitializer;
 import org.telegram.telegrambots.TelegramBotsApi;
 import org.telegram.telegrambots.api.methods.AnswerCallbackQuery;
@@ -18,7 +20,6 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
     private static final String botToken = "462721270:AAHLtx9MXbeYivPP_SyQ9Sg6GeX3nMEsm54";
     private static final String botUsername = "EverNeverBot";
     private Map<Long, Game> games = new HashMap<>();
-    private Map<Long, Map<String, Integer>> scoreBoard = new HashMap<>();
 
     public NeverEverBot() {
         super(botUsername);
@@ -43,15 +44,16 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
     public void processNonCommandUpdate(Update update) {
         if (update.hasMessage()){
             long chatId = update.getMessage().getChatId();
+            String chatName = update.getMessage().getChat().getTitle();
 
             // начало игры
             if (update.getMessage().getText().toLowerCase().startsWith("я никогда не")
                     || update.getMessage().getText().toLowerCase().startsWith("я ни разу не")){
 
-                String initiator = update.getMessage().getFrom().getFirstName();
+                User initiator = new User(update.getMessage().getFrom().getId(), update.getMessage().getFrom().getFirstName());
                 String question = update.getMessage().getText();
 
-                startGame(chatId, question, initiator);
+                startGame(chatId, chatName, question, initiator);
             }
 
             // закончить игру
@@ -61,7 +63,9 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
         }
         else if (update.hasCallbackQuery()){
             long chatId = update.getCallbackQuery().getMessage().getChatId();
-            String player = update.getCallbackQuery().getFrom().getFirstName();
+            //Chat chat = new Chat(update.getCallbackQuery().getMessage().getChatId(),update.getCallbackQuery().getMessage().getChat().getTitle());
+
+            User player = new User(update.getCallbackQuery().getFrom().getId(), update.getCallbackQuery().getFrom().getFirstName());
 
             switch (update.getCallbackQuery().getData()) {
                 case "never" :
@@ -89,12 +93,12 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
         return botToken;
     }
 
-    private void startGame(long chatId,  String question, String initiator){
+    private void startGame(Long chatId, String chatName,  String question, User initiator){
+        Chat chat = new Chat(chatId, chatName);
         if (!games.containsKey(chatId)) {
             //очки для чата
-            if (!scoreBoard.containsKey(chatId)) scoreBoard.put(chatId, new HashMap<>());
 
-            Game gameToStart = new Game(this, chatId, initiator, scoreBoard.get(chatId));
+            Game gameToStart = new Game(this, chat, initiator);
             games.put(chatId, gameToStart);
             gameToStart.startGame(question);
 
@@ -115,7 +119,7 @@ public class NeverEverBot extends TelegramLongPollingCommandBot {
         }
     }
 
-    public void endGame(long chatId){
+    public void endGame(Long chatId){
         if (games.containsKey(chatId)) {
             Game gameToEnd = games.remove(chatId);
             gameToEnd.endGame();

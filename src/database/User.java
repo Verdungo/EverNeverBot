@@ -1,6 +1,8 @@
 package database;
 
-public class User {
+import org.jetbrains.annotations.NotNull;
+
+public class User{
     private long id;
     private String Name;
 
@@ -23,5 +25,15 @@ public class User {
 
     public void setName(String name) {
         Name = name;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return (obj instanceof User) && (this.id == ((User) obj).getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return (int) id;
     }
 }

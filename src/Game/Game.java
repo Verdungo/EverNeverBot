@@ -2,10 +2,16 @@ package Game;
 
 import Bot.NeverEverBot;
 import Bot.NeverEverKeyboard;
+import database.Chat;
+import database.DBAdapter;
+import database.Score;
+import database.User;
 import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
 
+import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.LinkedHashMap;
@@ -19,24 +25,27 @@ public class Game extends Thread{
 
     private boolean active = false;
     private String question = "";
-    private String gameInitiator;
+    private User gameInitiator;
     private NeverEverBot bot;
-    private long chatId;
+    private Chat chat;
     private Integer headerMessageId;
-    private long remainingTime;
-    private Map<String, Boolean> answers;
-    private Map<String, Integer> chatScores;
+    private long remainingTime = ROUND_MINUTES;
+    private Map<User, Boolean> answers;
+    private Map<User, Integer> chatScores;
+    private DBAdapter dbAdapter;
 
-    public Game(NeverEverBot bot, long chatId, String gameInitiator, Map<String, Integer> chatScores) {
+    public Game(NeverEverBot bot, Chat chat, User gameInitiator) {
         this.bot = bot;
-        this.chatId = chatId;
-        remainingTime = ROUND_MINUTES;
-        answers = new LinkedHashMap<>();
-        this.chatScores = chatScores;
+        this.chat = chat;
         this.gameInitiator = gameInitiator;
 
+        dbAdapter = new DBAdapter();
+        chatScores = dbAdapter.getChatScores(chat);
+
+        answers = new LinkedHashMap<>();
+
         SendMessage msg = new SendMessage()
-                .setChatId(chatId)
+                .setChatId(chat.getId())
                 .setText("Новый вопрос - \"" + question + "\"")
                 .setReplyMarkup(NeverEverKeyboard.getKeybboard());
 
@@ -51,6 +60,8 @@ public class Game extends Thread{
         question = q;
         active = true;
         answers.put(gameInitiator, true);
+        //TODO: тут обновлять имя чата?
+        dbAdapter.updateChat(chat);
 
         this.start();
     }
@@ -64,7 +75,7 @@ public class Game extends Thread{
         calcScores();
 
         EditMessageText emsg = new EditMessageText()
-                .setChatId(chatId)
+                .setChatId(chat.getId())
                 .setMessageId(headerMessageId)
                 .setText(formMessage(false));
 
@@ -75,11 +86,12 @@ public class Game extends Thread{
         }
 
         StringBuilder result = new StringBuilder("Игра закончена!\nОбщий счет:\n");
-        for (Entry<String, Integer> s : chatScores.entrySet()) {
-            result.append(s.getKey()).append(": ").append(s.getValue()).append("\n");
+        for (Entry<User, Integer> e : chatScores.entrySet()) {
+            result.append(e.getKey().getName()).append(": ").append(e.getValue()).append("\n");
         }
+
         SendMessage msg = new SendMessage()
-                .setChatId(chatId)
+                .setChatId(chat.getId())
                 .setText(result.toString());
 
         try {
@@ -88,6 +100,7 @@ public class Game extends Thread{
             e.printStackTrace();
         }
 
+        dbAdapter.updateScores(chat, chatScores);
     }
 
     public void run() {
@@ -104,7 +117,7 @@ public class Game extends Thread{
             remainingTime-=TICK_INTERVAL;
         } while (active && remainingTime>0);
 
-        if (active) bot.endGame(chatId);
+        if (active) bot.endGame(chat.getId());
     }
 
     private String getRemainingTime(long mills) {
@@ -115,7 +128,7 @@ public class Game extends Thread{
 
     public void updateHeaderMessage(){
         EditMessageText msg = new EditMessageText()
-                .setChatId(chatId)
+                .setChatId(chat.getId())
                 .setMessageId(headerMessageId)
                 .setReplyMarkup(NeverEverKeyboard.getKeybboard())
                 .setText(formMessage(true));
@@ -130,26 +143,31 @@ public class Game extends Thread{
     private String formMessage(boolean withTime){
         StringBuilder sb = new StringBuilder(question).append("\n");
         if (withTime) sb.append("(").append(getRemainingTime(remainingTime)).append(")\n");
-        for (Map.Entry<String, Boolean> answer: answers.entrySet()){
-            sb.append(answer.getKey()).append(" ").append(answer.getValue() ? "❌" : "✔").append("\n");
+        for (Map.Entry<User, Boolean> answer: answers.entrySet()){
+            sb.append(answer.getKey().getName()).append(" ").append(answer.getValue() ? "❌" : "✔").append("\n");
         }
         return sb.toString();
     }
 
-    public void putAnswer(String player, boolean ans) {
+    public void putAnswer(User player, boolean ans) {
         answers.put(player, ans);
     }
 
     private void calcScores() {
         boolean initiatorLoser = !answers.containsValue(false);
-        for (Entry<String, Boolean> answer : answers.entrySet()) {
-            Integer playerScore = (!answer.getValue() || (answer.getKey().equals(gameInitiator) && initiatorLoser)) ? 0 : 1;
-            if (!chatScores.containsKey(answer.getKey())) {
-                chatScores.put(answer.getKey(), playerScore);
+        for (Entry<User, Boolean> answer : answers.entrySet()) {
+            User player = answer.getKey();
+            Integer score = (!answer.getValue() || (answer.getKey().equals(gameInitiator) && initiatorLoser)) ? 0 : 1;
+
+            if (chatScores.containsKey(player)) {
+                chatScores.put(player, chatScores.get(player)+score);
             }
             else {
-                chatScores.put(answer.getKey(), chatScores.get(answer.getKey())+playerScore);
+                chatScores.put(player, score);
             }
+
+            //TODO: надо ли обновлять имя игрока?
+            dbAdapter.updateUser(player);
         }
     }
 }

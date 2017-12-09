@@ -24,4 +24,14 @@ public class Chat {
     public void setName(String name) {
         this.name = name;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        return  (obj instanceof Chat) && this.id == ((Chat)obj).getId();
+    }
+
+    @Override
+    public int hashCode() {
+        return (int) id;
+    }
 }
