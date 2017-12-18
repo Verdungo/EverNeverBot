@@ -2,6 +2,10 @@ package database;
 
 import com.mysql.fabric.jdbc.FabricMySQLDriver;
 
+import java.io.BufferedOutputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,23 +21,41 @@ public class DBAdapter {
     private static final String GET_ALL_USERS = "SELECT * FROM user";
     private static final String INSERT_CHAT = "INSERT INTO chat(id, nv_name) VALUES ( ? , ? )";
     private static final String INSERT_USER = "INSERT INTO user(id, nv_name) VALUES ( ? , ? )";
+    private static final String REPLACE_CHAT = "REPLACE INTO chat(id, nv_name) VALUES ( ? , ? )";
+    private static final String REPLACE_USER = "REPLACE INTO user(id, nv_name) VALUES ( ? , ? )";
     private static final String UPDATE_CHAT = "UPDATE chat SET nv_name = ? WHERE id = ?";
     private static final String UPDATE_USER = "UPDATE user SET nv_name = ? WHERE id = ?";
+
+    private static final String INSERT_USER_IN_CHAT = "INSERT INTO userinchat(idchat, iduser) VALUES ( ? , ? )";
+
     private static final String GET_CHAT_SCORES =   "select u.id, u.nv_name, s.score from score s\n" +
                                                     "inner join userinchat cu on cu.id = s.iduserinchat\n" +
                                                     "inner join user u on u.id = cu.iduser\n" +
                                                     "where cu.idchat = ?";
-    private static final String UPDATE_SCORE =  "update score s\n" +
-                                                "inner join userinchat uc on s.iduserinchat = uc.id\n" +
-                                                "inner join user u on u.id = uc.iduser\n" +
-                                                "inner join chat c on c.id = uc.idchat\n" +
-                                                "set s.score = ? where c.id = ? and u.id = ?";
+    private static final String DELETE_CHAT_SCORES =    "delete s from score s\n" +
+                                                        "inner join userinchat uc on s.iduserinchat = uc.id\n" +
+                                                        "inner join chat c on c.id = uc.idchat\n" +
+                                                        "where c.id = ?";
+    private static final String INSERT_CHAT_SCORES =    "insert into score(iduserinchat, score) \n" +
+                                                        "select uc.id, ? from userinchat uc\n" +
+                                                        "inner join user u on u.id = uc.iduser\n" +
+                                                        "inner join chat c on c.id = uc.idchat\n" +
+                                                        "where c.id = ? and u.id = ?;\n";
     private static Connection connection;
 
     public DBAdapter(){
         try {
+            System.setOut(new PrintStream(new BufferedOutputStream(new FileOutputStream("output.txt"))));
+            System.setErr(new PrintStream(new BufferedOutputStream(new FileOutputStream("err.txt"))));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+
+        try {
             Driver driver = new FabricMySQLDriver();
             DriverManager.registerDriver(driver);
+
             connection = DriverManager.getConnection(URL,USERNAME,PASSWORD);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -43,9 +65,19 @@ public class DBAdapter {
     }
 
     // region chat CRUD
-    //TODO: возвращать вставленный id ?
     public void insertChat(Chat chat){
         try(PreparedStatement statement = connection.prepareStatement(INSERT_CHAT)) {
+            statement.setLong(1, chat.getId());
+            statement.setString(2, chat.getName());
+
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void replaceChat(Chat chat){
+        try(PreparedStatement statement = connection.prepareStatement(REPLACE_CHAT)) {
             statement.setLong(1, chat.getId());
             statement.setString(2, chat.getName());
 
@@ -70,9 +102,19 @@ public class DBAdapter {
     // endregion
 
     // region user CRUD
-    //TODO: возвращать вставленный id ?
     public void insertUser(User user){
         try(PreparedStatement statement = connection.prepareStatement(INSERT_USER)) {
+            statement.setLong(1, user.getId());
+            statement.setString(2, user.getName());
+
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void replaceUser(User user){
+        try(PreparedStatement statement = connection.prepareStatement(REPLACE_USER)) {
             statement.setLong(1, user.getId());
             statement.setString(2, user.getName());
 
@@ -135,26 +177,55 @@ public class DBAdapter {
         }
     }
 
-    public void updateScores(Chat chat, Map<User, Integer> chatScores) {
-        //TODO: должен быть чат
+    public void insertUserInChat(Chat chat, User user){
+        try(PreparedStatement statement = connection.prepareStatement(INSERT_USER_IN_CHAT)) {
+            statement.setLong(1, chat.getId());
+            statement.setLong(2, user.getId());
 
-
-        //TODO: должен быть юзер
-
-        //TODO: должен быть юзеринчат
-
-        for (Entry<User, Integer> score :
-                chatScores.entrySet()) {
-            try(PreparedStatement statement = connection.prepareStatement(UPDATE_SCORE)) {
-                statement.setInt(1, score.getValue()); //score
-                statement.setLong(2, chat.getId()); //chat
-                statement.setLong(3, score.getKey().getId()); //user
-
-                statement.executeUpdate();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
+    }
+
+    public void deleteChatScores(Chat chat){
+        try(PreparedStatement statement = connection.prepareStatement(DELETE_CHAT_SCORES)) {
+
+            statement.setLong(1, chat.getId() );
+
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void insertScores(Chat chat, Entry<User, Integer> chatScore){
+        try(PreparedStatement statement = connection.prepareStatement(INSERT_CHAT_SCORES)) {
+
+            statement.setLong(1, chatScore.getValue() );
+            statement.setLong(2, chat.getId());
+            statement.setLong(3, chatScore.getKey().getId());
+
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    public void updateScores(Chat chat, Map<User, Integer> chatScores) {
+        replaceChat(chat);
+        deleteChatScores(chat);
+
+        for (Entry<User, Integer> pair : chatScores.entrySet()) {
+            User user = pair.getKey();
+
+            replaceUser(user);
+
+            insertUserInChat(chat, user);
+
+            insertScores(chat, pair);
+        }
+
+
+
     }
 }

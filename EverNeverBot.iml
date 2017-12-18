@@ -7,7 +7,7 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="telegrambots-3.5-jar-with-dependencies" level="project" />
-    <orderEntry type="library" name="mysql-connector-java-5.1.45-bin" level="project" />
+    <orderEntry type="library" exported="" name="telegrambots-3.5-jar-with-dependencies" level="project" />
+    <orderEntry type="library" exported="" name="mysql-connector-java-5.1.45-bin" level="project" />
   </component>
 </module>
