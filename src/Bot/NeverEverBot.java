@@ -17,7 +17,7 @@ import java.util.Map;
 
 public class NeverEverBot extends TelegramLongPollingCommandBot {
 
-    private static final String botToken = "462721270:AAHLtx9MXbeYivPP_SyQ9Sg6GeX3nMEsm54";
+    private static final String botToken = "<your_bot_token_here>";
     private static final String botUsername = "EverNeverBot";
     private Map<Long, Game> games = new HashMap<>();
 
